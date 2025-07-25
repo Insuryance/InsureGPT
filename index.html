@@ -692,7 +692,13 @@
         let currentFile = null;
         let extractedText = '';
         let analysisResults = {};
-        let storedDocuments = JSON.parse(localStorage.getItem('insuregpt-documents') || '[]');
+        let storedDocuments = [];
+try {
+    storedDocuments = JSON.parse(localStorage.getItem('insuregpt-documents') || '[]');
+} catch (e) {
+    console.warn('localStorage not available, using memory storage');
+    storedDocuments = [];
+}
 
         // DOM elements
         const fileInput = document.getElementById('fileInput');
@@ -1151,7 +1157,9 @@ function viewDocumentDetails(docId) {
 
             // Populate result cards
             populateResultCards();
-            saveDocument(currentFile, analysisResults);
+if (currentFile) {
+    saveDocument(currentFile, analysisResults);
+}
         }
 
         function populateResultCards() {
@@ -1324,7 +1332,11 @@ function saveDocument(file, analysis) {
         storedDocuments = storedDocuments.slice(0, 50);
     }
     
+    try {
     localStorage.setItem('insuregpt-documents', JSON.stringify(storedDocuments));
+} catch (e) {
+    console.warn('Could not save to localStorage:', e);
+}
 }
         function generateReportContent() {
             const date = new Date().toLocaleDateString();
