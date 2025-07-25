@@ -474,11 +474,12 @@
                 <i class="fas fa-shield-alt"></i> InsureGPT
             </div>
             <ul class="nav-links">
-                <li><a href="#home" class="active">Home</a></li>
-                <li><a href="#analyze">Analyze</a></li>
-                <li><a href="#features">Features</a></li>
-                <li><a href="#about">About</a></li>
-            </ul>
+    <li><a href="#home" class="active">Home</a></li>
+    <li><a href="#analyze">Analyze</a></li>
+    <li><a href="#" onclick="showHistory()">History</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#about">About</a></li>
+</ul>
             <a href="#analyze" class="btn btn-primary">
                 <i class="fas fa-upload"></i> Analyze Policy
             </a>
@@ -666,6 +667,20 @@
                 </div>
             </div>
         </section>
+        <!-- Document History Section -->
+<section class="history-section" id="historySection" style="display: none;">
+    <div class="container">
+        <h2 class="text-center mb-3">Document History</h2>
+        <div id="documentHistory">
+            <!-- Dynamic content -->
+        </div>
+        <div class="text-center mt-3">
+            <button class="btn btn-secondary" onclick="hideHistory()">
+                <i class="fas fa-arrow-left"></i> Back to Upload
+            </button>
+        </div>
+    </div>
+</section>
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -677,6 +692,7 @@
         let currentFile = null;
         let extractedText = '';
         let analysisResults = {};
+        let storedDocuments = JSON.parse(localStorage.getItem('insuregpt-documents') || '[]');
 
         // DOM elements
         const fileInput = document.getElementById('fileInput');
@@ -754,6 +770,61 @@
             
             fileInfo.classList.add('active');
         }
+        function showHistory() {
+    document.querySelector('.upload-section').style.display = 'none';
+    document.getElementById('historySection').style.display = 'block';
+    loadDocumentHistory();
+}
+
+function hideHistory() {
+    document.getElementById('historySection').style.display = 'none';
+    document.querySelector('.upload-section').style.display = 'block';
+}
+
+function loadDocumentHistory() {
+    const historyContainer = document.getElementById('documentHistory');
+    
+    if (storedDocuments.length === 0) {
+        historyContainer.innerHTML = '<p class="text-center text-gray-400">No documents uploaded yet.</p>';
+        return;
+    }
+    
+    const historyHTML = storedDocuments.map(doc => `
+        <div class="result-card" style="margin-bottom: 1rem;">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div>
+                    <div class="card-title">${doc.fileName}</div>
+                    <div style="color: var(--gray-400); font-size: 0.9rem;">
+                        Uploaded: ${new Date(doc.uploadDate).toLocaleDateString()} | 
+                        Size: ${(doc.fileSize / 1024 / 1024).toFixed(2)} MB |
+                        Risk Score: ${doc.analysis.riskScore || 'N/A'}
+                    </div>
+                </div>
+            </div>
+            <div class="card-content">
+                <p><strong>Policy Type:</strong> ${doc.analysis.policyType || 'Not detected'}</p>
+                <p><strong>Sum Insured:</strong> ${doc.analysis.sumInsured || 'Not specified'}</p>
+                <button class="btn btn-primary" onclick="viewDocumentDetails(${doc.id})" style="margin-top: 1rem;">
+                    View Details
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    historyContainer.innerHTML = historyHTML;
+}
+
+function viewDocumentDetails(docId) {
+    const doc = storedDocuments.find(d => d.id === docId);
+    if (doc) {
+        analysisResults = doc.analysis;
+        extractedText = doc.textExtract;
+        showResults();
+    }
+}
 
         function showError(message) {
             errorMessage.textContent = message;
@@ -763,6 +834,11 @@
         function hideError() {
             errorMessage.classList.remove('active');
         }
+        function showInvalidDocumentError() {
+    analysisSection.classList.remove('active');
+    document.querySelector('.upload-section').style.display = 'block';
+    showError('This document does not appear to be an insurance policy. Please upload a valid insurance policy document that contains policy numbers, coverage details, and insurance terms.');
+    }
 
         async function startAnalysis() {
             if (!currentFile) {
@@ -840,40 +916,51 @@
         }
 
         async function analyzeDocument(text) {
-            updateProgress(40, 'Analyzing policy structure...');
-            await sleep(1000);
+    updateProgress(40, 'Validating document type...');
+    await sleep(1000);
+    
+    // First validate if it's a policy document
+    const isValidPolicy = validatePolicyDocument(text);
+    if (!isValidPolicy) {
+        updateProgress(100, 'Document validation failed!');
+        await sleep(500);
+        showInvalidDocumentError();
+        return;
+    }
 
-            updateProgress(55, 'Identifying coverage areas...');
-            await sleep(1000);
+    updateProgress(55, 'Analyzing policy structure...');
+    await sleep(1000);
 
-            updateProgress(70, 'Calculating risk scores...');
-            await sleep(1000);
+    updateProgress(70, 'Identifying coverage areas...');
+    await sleep(1000);
 
-            updateProgress(85, 'Generating recommendations...');
-            await sleep(1000);
+    updateProgress(85, 'Calculating risk scores...');
+    await sleep(1000);
 
-            // Perform actual analysis based on extracted text
-            analysisResults = performRealAnalysis(text);
+    updateProgress(95, 'Generating recommendations...');
+    await sleep(1000);
 
-            updateProgress(100, 'Analysis complete!');
-            await sleep(500);
-        }
+    // Perform actual analysis based on extracted text
+    analysisResults = performRealAnalysis(text);
 
-        function performRealAnalysis(text) {
-            // Real analysis logic based on extracted text
-            const analysis = {
-                policyType: detectPolicyType(text),
-                sumInsured: extractSumInsured(text),
-                premium: extractPremium(text),
-                coverageAreas: identifyCoverageAreas(text),
-                exclusions: identifyExclusions(text),
-                riskScore: calculateRiskScore(text),
-                gaps: identifyGaps(text),
-                recommendations: generateRecommendations(text)
-            };
+    updateProgress(100, 'Analysis complete!');
+    await sleep(500);
+}
 
-            return analysis;
-        }
+       function performRealAnalysis(text) {
+    const analysis = {
+        policyType: detectPolicyType(text),
+        sumInsured: extractSumInsured(text),
+        premium: extractPremium(text), // Fixed function name
+        coverageAreas: identifyCoverageAreas(text),
+        exclusions: identifyExclusions(text),
+        riskScore: calculateRiskScore(text),
+        gaps: identifyGaps(text),
+        recommendations: generateRecommendations(text),
+        isValidPolicy: validatePolicyDocument(text) // Add this new function
+    };
+    return analysis;
+}
 
         function detectPolicyType(text) {
             const lowerText = text.toLowerCase();
@@ -901,7 +988,7 @@
             return 'Not specified';
         }
 
-        function extract Premium(text) {
+        function extractPremium(text) {
             // Extract premium using regex patterns
             const patterns = [
                 /premium[:\s]*₹?[\s]*([0-9,]+)/i,
@@ -1012,6 +1099,25 @@
 
             return recommendations;
         }
+        function validatePolicyDocument(text) {
+    const lowerText = text.toLowerCase();
+    const policyIndicators = [
+        'policy number', 'policy no', 'certificate number', 'certificate no',
+        'insured person', 'policyholder',  'sum insured', 'premium amount',
+        'coverage', 'deductible', 'beneficiary', 'terms and conditions',
+        'insurance company', 'insurer', 'underwriter'
+    ];
+    
+    let indicatorCount = 0;
+    policyIndicators.forEach(indicator => {
+        if (lowerText.includes(indicator)) {
+            indicatorCount++;
+        }
+    });
+    
+    // If at least 3 policy-related terms are found, consider it a valid policy
+    return indicatorCount >= 3;
+}
 
         function updateProgress(percent, message) {
             progressFill.style.width = `${percent}%`;
@@ -1045,6 +1151,7 @@
 
             // Populate result cards
             populateResultCards();
+            saveDocument(currentFile, analysisResults);
         }
 
         function populateResultCards() {
@@ -1199,7 +1306,26 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
-
+function saveDocument(file, analysis) {
+    const docData = {
+        id: Date.now(),
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        uploadDate: new Date().toISOString(),
+        analysis: analysis,
+        textExtract: extractedText.substring(0, 1000) // Store first 1000 chars
+    };
+    
+    storedDocuments.unshift(docData); // Add to beginning
+    
+    // Keep only last 50 documents
+    if (storedDocuments.length > 50) {
+        storedDocuments = storedDocuments.slice(0, 50);
+    }
+    
+    localStorage.setItem('insuregpt-documents', JSON.stringify(storedDocuments));
+}
         function generateReportContent() {
             const date = new Date().toLocaleDateString();
             return `
